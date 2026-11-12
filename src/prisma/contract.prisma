@@ -1,0 +1,565 @@
+// use prisma-8
+// Contract inferred from the live database schema. Edit as needed, then run `prisma contract emit`.
+
+namespace public {
+  model Locations {
+    id           Int                                        @id(map: "locations_pkey") @default(autoincrement())
+    code         String(storage: varchar, length: 30)       @unique(map: "locations_code_key")
+    name         String(storage: varchar, length: 100)
+    locationType pg.enum(LocationType)                      @map("location_type")
+    parentId     Int?                                       @map("parent_id")
+    description  String?
+    isActive     Boolean                                    @default(true) @map("is_active")
+    createdAt    DateTime(storage: timestamp, precision: 6) @default(now()) @map("created_at")
+    assets       Assets[]
+    parent       Locations?                                 @relation(name: "locations_parent_id_fkey", fields: [parentId], references: [id], map: "locations_parent_id_fkey")
+    locations    Locations[]                                @relation(name: "locations_parent_id_fkey")
+
+    @@index([parentId], map: "idx_locations_parent")
+    @@check(expression: sql`((parent_id IS NULL) OR (parent_id <> id))`, map: "locations_check")
+    @@map("locations")
+  }
+
+  model Specialties {
+    id                   Int                                         @id(map: "specialties_pkey") @default(autoincrement())
+    name                 String(storage: varchar, length: 50)        @unique(map: "specialties_name_key")
+    isActive             Boolean                                     @default(true) @map("is_active")
+    createdAt            DateTime(storage: timestamp, precision: 6)? @default(now()) @map("created_at")
+    updatedAt            DateTime(storage: timestamp, precision: 6)? @default(now()) @map("updated_at")
+    assets               Assets[]
+    maintenanceSchedules MaintenanceSchedules[]
+    userSpecialties      UserSpecialties[]
+
+    @@map("specialties")
+  }
+
+  model Assets {
+    id                   Int                                         @id(map: "assets_pkey") @default(autoincrement())
+    assetCode            String(storage: varchar, length: 50)        @unique(map: "assets_asset_code_key") @map("asset_code")
+    name                 String(storage: varchar, length: 150)
+    locationId           Int                                         @map("location_id")
+    parentAssetId        Int?                                        @map("parent_asset_id")
+    priority             pg.enum(Priority)                           @default("MEDIUM")
+    requiredSpecialtyId  Int                                         @map("required_specialty_id")
+    status               pg.enum(AssetStatus)                        @default("ACTIVE")
+    currentMeter         Decimal(precision: 14, scale: 2)?           @default(0) @map("current_meter")
+    meterUnit            String(storage: varchar, length: 20)?       @default("HOURS") @map("meter_unit")
+    qrCodeUrl            String(storage: varchar, length: 255)?      @map("qr_code_url")
+    installedDate        Date?                                       @map("installed_date")
+    warrantyExpiry       Date?                                       @map("warranty_expiry")
+    createdAt            DateTime(storage: timestamp, precision: 6)? @default(now()) @map("created_at")
+    updatedAt            DateTime(storage: timestamp, precision: 6)? @map("updated_at")
+    alerts               Alerts[]
+    assetBoms            AssetBom[]
+    assetDetails         AssetDetails?
+    assetThresholds      AssetThresholds[]
+    downtimeEvents       DowntimeEvents[]
+    maintenanceSchedules MaintenanceSchedules[]
+    telemetryLogs        TelemetryLogs[]
+    workOrders           WorkOrders[]
+    location             Locations                                   @relation(fields: [locationId], references: [id], map: "assets_location_id_fkey")
+    parentAsset          Assets?                                     @relation(name: "assets_parent_asset_id_fkey", fields: [parentAssetId], references: [id], map: "assets_parent_asset_id_fkey")
+    assets               Assets[]                                    @relation(name: "assets_parent_asset_id_fkey")
+    requiredSpecialty    Specialties                                 @relation(fields: [requiredSpecialtyId], references: [id], map: "assets_required_specialty_id_fkey")
+
+    @@index([locationId], map: "idx_assets_location")
+    @@index([parentAssetId], map: "idx_assets_parent")
+    @@index([requiredSpecialtyId], map: "idx_assets_specialty")
+    @@check(expression: sql`((parent_asset_id IS NULL) OR (parent_asset_id <> id))`, map: "assets_check")
+    @@map("assets")
+  }
+
+  model AssetThresholds {
+    id           Int                                         @id(map: "asset_thresholds_pkey") @default(autoincrement())
+    assetId      Int                                         @map("asset_id")
+    metricType   String(storage: varchar, length: 50)        @map("metric_type")
+    unit         String(storage: varchar, length: 20)
+    warningLimit Float                                       @map("warning_limit")
+    dangerLimit  Float                                       @map("danger_limit")
+    createdAt    DateTime(storage: timestamp, precision: 6)? @default(now()) @map("created_at")
+    updatedAt    DateTime(storage: timestamp, precision: 6)? @default(now()) @map("updated_at")
+    alerts       Alerts[]
+    asset        Assets                                      @relation(fields: [assetId], references: [id], map: "asset_thresholds_asset_id_fkey", index: "asset_thresholds_asset_id_metric_type_key")
+
+    @@unique([assetId, metricType], map: "asset_thresholds_asset_id_metric_type_key")
+    @@map("asset_thresholds")
+  }
+
+  model Users {
+    id                    Int                                         @id(map: "users_pkey") @default(autoincrement())
+    employeeCode          String(storage: varchar, length: 30)        @unique(map: "users_employee_code_key") @map("employee_code")
+    fullName              String(storage: varchar, length: 100)       @map("full_name")
+    email                 String(storage: varchar, length: 100)       @unique(map: "users_email_key")
+    passwordHash          String(storage: varchar, length: 255)       @map("password_hash")
+    phone                 String(storage: varchar, length: 20)?       @unique(map: "users_phone_key")
+    role                  pg.enum(UserRole)
+    isAvailable           Boolean?                                    @default(true) @map("is_available")
+    mustChangePassword    Boolean                                     @default(false) @map("must_change_password")
+    failedLoginAttempts   Int                                         @default(0) @map("failed_login_attempts")
+    isActive              Boolean                                     @default(true) @map("is_active")
+    createdAt             DateTime(storage: timestamp, precision: 6)? @default(now()) @map("created_at")
+    updatedAt             DateTime(storage: timestamp, precision: 6)? @default(now()) @map("updated_at")
+    lastLoginAt           DateTime(storage: timestamp, precision: 6)? @map("last_login_at")
+    alerts                Alerts[]
+    auditLogs             AuditLogs[]
+    inventoryTransactions InventoryTransactions[]
+    notifications         Notifications[]
+    passwordForgets       PasswordForgets?
+    telemetryLogs         TelemetryLogs[]
+    userShifts            UserShifts[]
+    userSpecialties       UserSpecialties[]
+    workOrderChecklists   WorkOrderChecklists[]
+    workOrderParts        WorkOrderParts[]
+    workOrders            WorkOrders[]                                @relation(name: "work_orders_assigned_to_fkey")
+    workOrdersWorkOrders  WorkOrders[]                                @relation(name: "work_orders_reported_by_fkey")
+    workOrders2           WorkOrders[]                                @relation(name: "work_orders_verified_by_fkey")
+
+    @@map("users")
+  }
+
+  model FailureCodes {
+    id         Int                                         @id(map: "failure_codes_pkey") @default(autoincrement())
+    code       String(storage: varchar, length: 30)        @unique(map: "failure_codes_code_key")
+    name       String(storage: varchar, length: 150)
+    category   String(storage: varchar, length: 50)?
+    isActive   Boolean                                     @default(true) @map("is_active")
+    createdAt  DateTime(storage: timestamp, precision: 6)? @default(now()) @map("created_at")
+    updatedAt  DateTime(storage: timestamp, precision: 6)? @default(now()) @map("updated_at")
+    workOrders WorkOrders[]
+
+    @@map("failure_codes")
+  }
+
+  model MaintenanceSchedules {
+    id                     Int                                         @id(map: "maintenance_schedules_pkey") @default(autoincrement())
+    assetId                Int                                         @map("asset_id")
+    title                  String(storage: varchar, length: 150)
+    scheduleType           pg.enum(ScheduleType)                       @map("schedule_type")
+    assignedSpecialtyId    Int                                         @map("assigned_specialty_id")
+    frequencyDays          Int?                                        @map("frequency_days")
+    lastCompletedDate      DateTime(storage: timestamp, precision: 6)? @map("last_completed_date")
+    nextDueDate            DateTime(storage: timestamp, precision: 6)? @map("next_due_date")
+    generateLeadDays       Int                                         @default(7) @map("generate_lead_days")
+    meterInterval          Decimal(precision: 14, scale: 2)?           @map("meter_interval")
+    lastPmMeter            Decimal(precision: 14, scale: 2)?           @default(0) @map("last_pm_meter")
+    nextDueMeter           Decimal(precision: 14, scale: 2)?           @map("next_due_meter")
+    generateLeadMeter      Decimal(precision: 14, scale: 2)?           @map("generate_lead_meter")
+    estimatedDurationHours Float?                                      @default(2) @map("estimated_duration_hours")
+    isActive               Boolean?                                    @default(true) @map("is_active")
+    createdAt              DateTime(storage: timestamp, precision: 6)? @default(now()) @map("created_at")
+    updatedAt              DateTime(storage: timestamp, precision: 6)? @default(now()) @map("updated_at")
+    scheduleParts          ScheduleParts[]
+    workOrders             WorkOrders[]
+    asset                  Assets                                      @relation(fields: [assetId], references: [id], map: "maintenance_schedules_asset_id_fkey")
+    assignedSpecialty      Specialties                                 @relation(fields: [assignedSpecialtyId], references: [id], map: "maintenance_schedules_assigned_specialty_id_fkey", index: false)
+
+    @@index([assetId], map: "idx_schedules_asset")
+    @@index([nextDueDate], map: "idx_schedules_due", where: sql`is_active`)
+    @@check(expression: sql`(((schedule_type = 'TIME_BASED'::schedule_type) AND (frequency_days IS NOT NULL)) OR ((schedule_type = 'METER_BASED'::schedule_type) AND (meter_interval IS NOT NULL)) OR ((schedule_type = 'HYBRID'::schedule_type) AND (frequency_days IS NOT NULL) AND (meter_interval IS NOT NULL)))`, map: "maintenance_schedules_check")
+    @@map("maintenance_schedules")
+  }
+
+  model WorkOrders {
+    id                    Int                                         @id(map: "work_orders_pkey") @default(autoincrement())
+    woCode                String(storage: varchar, length: 50)        @unique(map: "work_orders_wo_code_key") @map("wo_code")
+    assetId               Int                                         @map("asset_id")
+    scheduleId            Int?                                        @map("schedule_id")
+    title                 String(storage: varchar, length: 200)
+    description           String?
+    woType                pg.enum(WoType)                             @map("wo_type")
+    priority              pg.enum(Priority)
+    status                pg.enum(WoStatus)                           @default("OPEN")
+    failureCodeId         Int?                                        @map("failure_code_id")
+    rootCause             String?                                     @map("root_cause")
+    resolutionNotes       String?                                     @map("resolution_notes")
+    holdReason            String?                                     @map("hold_reason")
+    cancelReason          String?                                     @map("cancel_reason")
+    reportedBy            Int?                                        @map("reported_by")
+    assignedTo            Int?                                        @map("assigned_to")
+    verifiedBy            Int?                                        @map("verified_by")
+    scheduledStart        DateTime(storage: timestamp, precision: 6)? @map("scheduled_start")
+    scheduledEnd          DateTime(storage: timestamp, precision: 6)? @map("scheduled_end")
+    actualStart           DateTime(storage: timestamp, precision: 6)? @map("actual_start")
+    actualEnd             DateTime(storage: timestamp, precision: 6)? @map("actual_end")
+    laborHours            Decimal(precision: 8, scale: 2)?            @default(0) @map("labor_hours")
+    estimatedCost         Decimal(precision: 14, scale: 2)?           @map("estimated_cost")
+    actualCost            Decimal(precision: 14, scale: 2)?           @map("actual_cost")
+    createdAt             DateTime(storage: timestamp, precision: 6)? @default(now()) @map("created_at")
+    updatedAt             DateTime(storage: timestamp, precision: 6)? @default(now()) @map("updated_at")
+    closedAt              DateTime(storage: timestamp, precision: 6)? @map("closed_at")
+    alerts                Alerts[]
+    downtimeEvents        DowntimeEvents[]
+    inventoryTransactions InventoryTransactions[]
+    workOrderChecklists   WorkOrderChecklists[]
+    workOrderParts        WorkOrderParts[]
+    asset                 Assets                                      @relation(fields: [assetId], references: [id], map: "work_orders_asset_id_fkey")
+    users                 Users?                                      @relation(name: "work_orders_assigned_to_fkey", fields: [assignedTo], references: [id], map: "work_orders_assigned_to_fkey", index: "idx_wo_assigned_to")
+    failureCode           FailureCodes?                               @relation(fields: [failureCodeId], references: [id], map: "work_orders_failure_code_id_fkey", index: false)
+    usersUsers            Users?                                      @relation(name: "work_orders_reported_by_fkey", fields: [reportedBy], references: [id], map: "work_orders_reported_by_fkey", index: false)
+    schedule              MaintenanceSchedules?                       @relation(fields: [scheduleId], references: [id], map: "work_orders_schedule_id_fkey")
+    users2                Users?                                      @relation(name: "work_orders_verified_by_fkey", fields: [verifiedBy], references: [id], map: "work_orders_verified_by_fkey", index: false)
+
+    @@index([assetId], map: "idx_wo_asset")
+    @@index([assignedTo, status], map: "idx_wo_assigned_to")
+    @@index([scheduleId], map: "idx_wo_schedule")
+    @@index([scheduledStart], map: "idx_wo_scheduled_start")
+    @@index([status], map: "idx_wo_status")
+    @@check(expression: sql`((actual_end IS NULL) OR (actual_start IS NULL) OR (actual_end >= actual_start))`, map: "chk_wo_actual_range")
+    @@check(expression: sql`((status <> 'CANCELLED'::wo_status) OR (NULLIF(btrim(cancel_reason), ''::text) IS NOT NULL))`, map: "chk_wo_cancel_reason")
+    @@check(expression: sql`((status <> 'ON_HOLD'::wo_status) OR (NULLIF(btrim(hold_reason), ''::text) IS NOT NULL))`, map: "chk_wo_hold_reason")
+    @@check(expression: sql`((scheduled_end IS NULL) OR (scheduled_start IS NULL) OR (scheduled_end >= scheduled_start))`, map: "chk_wo_sched_range")
+    @@map("work_orders")
+  }
+
+  model Alerts {
+    id             BigInt                                      @id(map: "alerts_pkey") @default(autoincrement())
+    assetId        Int                                         @map("asset_id")
+    thresholdId    Int                                         @map("threshold_id")
+    level          pg.enum(AlertLevel)
+    status         pg.enum(AlertStatus)                        @default("OPEN")
+    triggerValue   Float                                       @map("trigger_value")
+    triggeredAt    DateTime(storage: timestamp, precision: 6)  @default(now()) @map("triggered_at")
+    acknowledgedBy Int?                                        @map("acknowledged_by")
+    acknowledgedAt DateTime(storage: timestamp, precision: 6)? @map("acknowledged_at")
+    resolvedAt     DateTime(storage: timestamp, precision: 6)? @map("resolved_at")
+    workOrderId    Int?                                        @map("work_order_id")
+    users          Users?                                      @relation(fields: [acknowledgedBy], references: [id], map: "alerts_acknowledged_by_fkey", index: false)
+    asset          Assets                                      @relation(fields: [assetId], references: [id], map: "alerts_asset_id_fkey", index: false)
+    threshold      AssetThresholds                             @relation(fields: [thresholdId], references: [id], map: "alerts_threshold_id_fkey", index: false)
+    workOrder      WorkOrders?                                 @relation(fields: [workOrderId], references: [id], map: "alerts_work_order_id_fkey")
+
+    @@index([workOrderId], map: "idx_alerts_work_order")
+    @@index([assetId, thresholdId], map: "uq_alerts_active_per_threshold", where: sql`(status <> 'RESOLVED'::alert_status)`, unique: true)
+    @@map("alerts")
+  }
+
+  model SpareParts {
+    id                    Int                                   @id(map: "spare_parts_pkey") @default(autoincrement())
+    partCode              String(storage: varchar, length: 50)  @unique(map: "spare_parts_part_code_key") @map("part_code")
+    name                  String(storage: varchar, length: 150)
+    unit                  String(storage: varchar, length: 20)
+    quantityInStock       Decimal(precision: 12, scale: 3)      @default(0) @map("quantity_in_stock")
+    reservedQuantity      Decimal(precision: 12, scale: 3)      @default(0) @map("reserved_quantity")
+    minStockLevel         Decimal(precision: 12, scale: 3)      @default(5) @map("min_stock_level")
+    unitPrice             Decimal(precision: 12, scale: 2)?     @default(0) @map("unit_price")
+    isActive              Boolean                               @default(true) @map("is_active")
+    assetBoms             AssetBom[]
+    inventoryTransactions InventoryTransactions[]
+    scheduleParts         ScheduleParts[]
+    workOrderParts        WorkOrderParts[]
+
+    @@check(expression: sql`(reserved_quantity >= (0)::numeric)`, map: "spare_parts_reserved_quantity_check")
+    @@map("spare_parts")
+  }
+
+  model AssetBom {
+    id               Int                               @id(map: "asset_bom_pkey") @default(autoincrement())
+    assetId          Int                               @map("asset_id")
+    partId           Int                               @map("part_id")
+    standardQuantity Decimal(precision: 12, scale: 3)? @default(1) @map("standard_quantity")
+    asset            Assets                            @relation(fields: [assetId], references: [id], map: "asset_bom_asset_id_fkey", index: "asset_bom_asset_id_part_id_key")
+    part             SpareParts                        @relation(fields: [partId], references: [id], map: "asset_bom_part_id_fkey")
+
+    @@unique([assetId, partId], map: "asset_bom_asset_id_part_id_key")
+    @@index([partId], map: "idx_asset_bom_part")
+    @@map("asset_bom")
+  }
+
+  model AssetDetails {
+    assetId       Int                                         @id(map: "asset_details_pkey") @map("asset_id")
+    manufacturer  String(storage: varchar, length: 100)?
+    _model        String(storage: varchar, length: 100)?      @map("model")
+    serialNumber  String(storage: varchar, length: 100)?      @unique(map: "asset_details_serial_number_key") @map("serial_number")
+    description   String?
+    purchaseDate  Date?                                       @map("purchase_date")
+    purchasePrice Decimal(precision: 14, scale: 2)?           @map("purchase_price")
+    imageUrl      String(storage: varchar, length: 255)?      @map("image_url")
+    documentUrl   String(storage: varchar, length: 255)?      @map("document_url")
+    createdAt     DateTime(storage: timestamp, precision: 6)  @default(now()) @map("created_at")
+    updatedAt     DateTime(storage: timestamp, precision: 6)? @default(now()) @map("updated_at")
+    asset         Assets                                      @relation(fields: [assetId], references: [id], map: "asset_details_asset_id_fkey")
+
+    @@map("asset_details")
+  }
+
+  model AuditLogs {
+    id         BigInt                                     @id(map: "audit_logs_pkey") @default(autoincrement())
+    userId     Int?                                       @map("user_id")
+    action     String(storage: varchar, length: 50)
+    entityType String(storage: varchar, length: 50)?      @map("entity_type")
+    entityId   String(storage: varchar, length: 50)?      @map("entity_id")
+    oldValue   Jsonb?                                     @map("old_value")
+    newValue   Jsonb?                                     @map("new_value")
+    ipAddress  String(storage: varchar, length: 45)?      @map("ip_address")
+    createdAt  DateTime(storage: timestamp, precision: 6) @default(now()) @map("created_at")
+    user       Users?                                     @relation(fields: [userId], references: [id], map: "audit_logs_user_id_fkey", index: "idx_audit_user_created")
+
+    @@index([action, createdAt], map: "idx_audit_action_created")
+    @@index([entityType, entityId], map: "idx_audit_entity")
+    @@index([userId, createdAt], map: "idx_audit_user_created")
+    @@map("audit_logs")
+  }
+
+  model DowntimeEvents {
+    id          Int                                         @id(map: "downtime_events_pkey") @default(autoincrement())
+    assetId     Int                                         @map("asset_id")
+    workOrderId Int                                         @map("work_order_id")
+    startedAt   DateTime(storage: timestamp, precision: 6)  @map("started_at")
+    endedAt     DateTime(storage: timestamp, precision: 6)? @map("ended_at")
+    asset       Assets                                      @relation(fields: [assetId], references: [id], map: "downtime_events_asset_id_fkey", index: "idx_downtime_asset")
+    workOrder   WorkOrders                                  @relation(fields: [workOrderId], references: [id], map: "downtime_events_work_order_id_fkey")
+
+    @@index([assetId, startedAt], map: "idx_downtime_asset")
+    @@index([workOrderId], map: "idx_downtime_wo")
+    @@check(expression: sql`((ended_at IS NULL) OR (ended_at >= started_at))`, map: "downtime_events_check")
+    @@map("downtime_events")
+  }
+
+  model InventoryTransactions {
+    id              Int                                        @id(map: "inventory_transactions_pkey") @default(autoincrement())
+    partId          Int                                        @map("part_id")
+    workOrderId     Int?                                       @map("work_order_id")
+    transactionType pg.enum(InventoryTxnType)                  @map("transaction_type")
+    quantity        Decimal(precision: 12, scale: 3)
+    performedBy     Int                                        @map("performed_by")
+    supplierName    String?                                    @map("supplier_name")
+    createdAt       DateTime(storage: timestamp, precision: 6) @default(now()) @map("created_at")
+    part            SpareParts                                 @relation(fields: [partId], references: [id], map: "inventory_transactions_part_id_fkey", index: "idx_inventory_txn_part_created")
+    users           Users                                      @relation(fields: [performedBy], references: [id], map: "inventory_transactions_performed_by_fkey", index: false)
+    workOrder       WorkOrders?                                @relation(fields: [workOrderId], references: [id], map: "inventory_transactions_work_order_id_fkey")
+
+    @@index([partId, createdAt], map: "idx_inventory_txn_part_created")
+    @@index([workOrderId], map: "idx_inventory_txn_wo")
+    @@map("inventory_transactions")
+  }
+
+  model Notifications {
+    id        BigInt                                      @id(map: "notifications_pkey") @default(autoincrement())
+    userId    Int                                         @map("user_id")
+    title     String(storage: varchar, length: 150)
+    body      String?
+    _type     String(storage: varchar, length: 50)        @map("type")
+    refType   String(storage: varchar, length: 30)?       @map("ref_type")
+    refId     Int?                                        @map("ref_id")
+    isRead    Boolean                                     @default(false) @map("is_read")
+    createdAt DateTime(storage: timestamp, precision: 6)  @default(now()) @map("created_at")
+    readAt    DateTime(storage: timestamp, precision: 6)? @map("read_at")
+    user      Users                                       @relation(fields: [userId], references: [id], map: "notifications_user_id_fkey", index: false)
+
+    @@index([userId, createdAt], map: "idx_notifications_user_unread", where: sql`(NOT is_read)`)
+    @@map("notifications")
+  }
+
+  model PasswordForgets {
+    id             Int                                         @id(map: "password_forgets_pkey") @default(autoincrement())
+    userId         Int                                         @unique(map: "password_forgets_user_id_key") @map("user_id")
+    tokenHash      String(storage: varchar, length: 255)       @map("token_hash")
+    failedAttempts Int?                                        @default(0) @map("failed_attempts")
+    expiresAt      DateTime(storage: timestamp, precision: 6)  @map("expires_at")
+    isUsed         Boolean?                                    @default(false) @map("is_used")
+    lastSentAt     DateTime(storage: timestamp, precision: 6)? @default(now()) @map("last_sent_at")
+    createdAt      DateTime(storage: timestamp, precision: 6)? @default(now()) @map("created_at")
+    resetTokenHash String(storage: varchar, length: 255)?      @map("reset_token_hash")
+    resetExpiresAt DateTime(storage: timestamp, precision: 6)? @map("reset_expires_at")
+    user           Users                                       @relation(fields: [userId], references: [id], map: "password_forgets_user_id_fkey")
+
+    @@map("password_forgets")
+  }
+
+  model ScheduleParts {
+    id         Int                              @id(map: "schedule_parts_pkey") @default(autoincrement())
+    scheduleId Int                              @map("schedule_id")
+    partId     Int                              @map("part_id")
+    quantity   Decimal(precision: 12, scale: 3)
+    part       SpareParts                       @relation(fields: [partId], references: [id], map: "schedule_parts_part_id_fkey")
+    schedule   MaintenanceSchedules             @relation(fields: [scheduleId], references: [id], map: "schedule_parts_schedule_id_fkey", index: "schedule_parts_schedule_id_part_id_key")
+
+    @@unique([scheduleId, partId], map: "schedule_parts_schedule_id_part_id_key")
+    @@index([partId], map: "idx_schedule_parts_part")
+    @@check(expression: sql`(quantity > (0)::numeric)`, map: "schedule_parts_quantity_check")
+    @@map("schedule_parts")
+  }
+
+  model TelemetryLogs {
+    id         BigInt                                      @id(map: "telemetry_logs_pkey") @default(autoincrement())
+    assetId    Int                                         @map("asset_id")
+    metricType String(storage: varchar, length: 50)        @map("metric_type")
+    unit       String(storage: varchar, length: 20)
+    value      Float
+    source     pg.enum(TelemetrySource)
+    recordedBy Int?                                        @map("recorded_by")
+    recordedAt DateTime(storage: timestamp, precision: 6)? @default(now()) @map("recorded_at")
+    asset      Assets                                      @relation(fields: [assetId], references: [id], map: "telemetry_logs_asset_id_fkey", index: "idx_telemetry_asset_metric_time")
+    users      Users?                                      @relation(fields: [recordedBy], references: [id], map: "telemetry_logs_recorded_by_fkey", index: false)
+
+    @@index([assetId, metricType, recordedAt], map: "idx_telemetry_asset_metric_time")
+    @@map("telemetry_logs")
+  }
+
+  model WorkShifts {
+    id         Int                                         @id(map: "work_shifts_pkey") @default(autoincrement())
+    name       String(storage: varchar, length: 50)
+    startTime  Time                                        @map("start_time")
+    endTime    Time                                        @map("end_time")
+    createdAt  DateTime(storage: timestamp, precision: 6)? @default(now()) @map("created_at")
+    updatedAt  DateTime(storage: timestamp, precision: 6)? @default(now()) @map("updated_at")
+    userShifts UserShifts[]
+
+    @@map("work_shifts")
+  }
+
+  model UserShifts {
+    id       Int        @id(map: "user_shifts_pkey") @default(autoincrement())
+    userId   Int        @map("user_id")
+    shiftId  Int        @map("shift_id")
+    workDate Date       @map("work_date")
+    shift    WorkShifts @relation(fields: [shiftId], references: [id], map: "user_shifts_shift_id_fkey")
+    user     Users      @relation(fields: [userId], references: [id], map: "user_shifts_user_id_fkey", index: "user_shifts_user_id_work_date_key")
+
+    @@unique([userId, workDate], map: "user_shifts_user_id_work_date_key")
+    @@index([shiftId], map: "idx_user_shifts_shift")
+    @@map("user_shifts")
+  }
+
+  model UserSpecialties {
+    userId      Int                 @map("user_id")
+    specialtyId Int                 @map("specialty_id")
+    skillLevel  Int(storage: int2)? @default(1) @map("skill_level")
+    specialty   Specialties         @relation(fields: [specialtyId], references: [id], map: "user_specialties_specialty_id_fkey")
+    user        Users               @relation(fields: [userId], references: [id], map: "user_specialties_user_id_fkey", index: "user_specialties_pkey")
+
+    @@id([userId, specialtyId], map: "user_specialties_pkey")
+    @@index([specialtyId], map: "idx_user_specialties_specialty")
+    @@check(expression: sql`((skill_level >= 1) AND (skill_level <= 5))`, map: "user_specialties_skill_level_check")
+    @@map("user_specialties")
+  }
+
+  model WorkOrderChecklists {
+    id               Int                                         @id(map: "work_order_checklists_pkey") @default(autoincrement())
+    workOrderId      Int                                         @map("work_order_id")
+    completedBy      Int?                                        @map("completed_by")
+    stepNumber       Int                                         @map("step_number")
+    taskDescription  String(storage: varchar, length: 255)       @map("task_description")
+    isCompleted      Boolean?                                    @default(false) @map("is_completed")
+    evidenceImageUrl String(storage: varchar, length: 255)?      @map("evidence_image_url")
+    completedAt      DateTime(storage: timestamp, precision: 6)? @map("completed_at")
+    note             String?
+    users            Users?                                      @relation(fields: [completedBy], references: [id], map: "work_order_checklists_completed_by_fkey", index: false)
+    workOrder        WorkOrders                                  @relation(fields: [workOrderId], references: [id], map: "work_order_checklists_work_order_id_fkey", index: "uq_wo_checklist_step")
+
+    @@index([workOrderId, stepNumber], map: "uq_wo_checklist_step", unique: true)
+    @@map("work_order_checklists")
+  }
+
+  model WorkOrderParts {
+    id               Int                                         @id(map: "work_order_parts_pkey") @default(autoincrement())
+    workOrderId      Int                                         @map("work_order_id")
+    partId           Int                                         @map("part_id")
+    quantityNeeded   Decimal(precision: 12, scale: 3)            @map("quantity_needed")
+    quantityIssued   Decimal(precision: 12, scale: 3)            @default(0) @map("quantity_issued")
+    quantityConsumed Decimal(precision: 12, scale: 3)            @default(0) @map("quantity_consumed")
+    status           pg.enum(WoPartStatus)                       @default("RESERVED")
+    approvedBy       Int?                                        @map("approved_by")
+    approvedAt       DateTime(storage: timestamp, precision: 6)? @map("approved_at")
+    users            Users?                                      @relation(fields: [approvedBy], references: [id], map: "work_order_parts_approved_by_fkey", index: false)
+    part             SpareParts                                  @relation(fields: [partId], references: [id], map: "work_order_parts_part_id_fkey")
+    workOrder        WorkOrders                                  @relation(fields: [workOrderId], references: [id], map: "work_order_parts_work_order_id_fkey")
+
+    @@index([partId], map: "idx_wo_parts_part")
+    @@index([workOrderId], map: "idx_wo_parts_wo")
+    @@check(expression: sql`((quantity_needed >= (0)::numeric) AND (quantity_issued >= (0)::numeric) AND (quantity_consumed >= (0)::numeric))`, map: "work_order_parts_check")
+    @@map("work_order_parts")
+  }
+
+  native_enum AlertLevel {
+    WARNING = "WARNING"
+    DANGER = "DANGER"
+    @@map("alert_level")
+  }
+
+  native_enum AlertStatus {
+    OPEN = "OPEN"
+    ACKNOWLEDGED = "ACKNOWLEDGED"
+    RESOLVED = "RESOLVED"
+    @@map("alert_status")
+  }
+
+  native_enum AssetStatus {
+    ACTIVE = "ACTIVE"
+    MAINTENANCE = "MAINTENANCE"
+    BROKEN = "BROKEN"
+    RETIRED = "RETIRED"
+    @@map("asset_status")
+  }
+
+  native_enum InventoryTxnType {
+    RECEIPT = "RECEIPT"
+    ISSUE = "ISSUE"
+    RETURN = "RETURN"
+    ADJUSTMENT = "ADJUSTMENT"
+    @@map("inventory_txn_type")
+  }
+
+  native_enum LocationType {
+    PLANT = "PLANT"
+    ZONE = "ZONE"
+    LINE = "LINE"
+    @@map("location_type")
+  }
+
+  native_enum Priority {
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+    CRITICAL = "CRITICAL"
+    @@map("priority")
+  }
+
+  native_enum ScheduleType {
+    TIME_BASED = "TIME_BASED"
+    METER_BASED = "METER_BASED"
+    HYBRID = "HYBRID"
+    @@map("schedule_type")
+  }
+
+  native_enum TelemetrySource {
+    IOT_SENSOR = "IOT_SENSOR"
+    MANUAL = "MANUAL"
+    @@map("telemetry_source")
+  }
+
+  native_enum UserRole {
+    ADMIN = "ADMIN"
+    MANAGER = "MANAGER"
+    TECHNICIAN = "TECHNICIAN"
+    STAFF = "STAFF"
+    INVENTORY_STAFF = "INVENTORY_STAFF"
+    @@map("user_role")
+  }
+
+  native_enum WoPartStatus {
+    RESERVED = "RESERVED"
+    ISSUED = "ISSUED"
+    CONSUMED = "CONSUMED"
+    RELEASED = "RELEASED"
+    @@map("wo_part_status")
+  }
+
+  native_enum WoStatus {
+    OPEN = "OPEN"
+    ASSIGNED = "ASSIGNED"
+    IN_PROGRESS = "IN_PROGRESS"
+    ON_HOLD = "ON_HOLD"
+    COMPLETED = "COMPLETED"
+    CLOSED = "CLOSED"
+    CANCELLED = "CANCELLED"
+    @@map("wo_status")
+  }
+
+  native_enum WoType {
+    PREVENTIVE = "PREVENTIVE"
+    REPAIR = "REPAIR"
+    EMERGENCY = "EMERGENCY"
+    @@map("wo_type")
+  }
+}
