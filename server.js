@@ -27,7 +27,7 @@ app.use(morgan("dev"));
 
 app.use(express.json());
 
-app.use(rootRouter);
+app.use("/api", rootRouter);
 app.use(errorHandler);
 
 app.listen(port, () => {
