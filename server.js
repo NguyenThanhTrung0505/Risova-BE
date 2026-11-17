@@ -8,7 +8,7 @@ import "dotenv/config";
 import errorHandler from "./src/common/helpers/error.helper.js";
 
 const app = express();
-const port = process.env.PORT;
+const port = process.env.PORT || 3000;
 
 app.use(helmet());
 app.use(
@@ -22,6 +22,11 @@ app.use(
 const limiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     limit: 500,
+    message: {
+        status: "error",
+        statusCode: 429,
+        message: "Quá nhiều yêu cầu, vui lòng thử lại sau",
+    },
 });
 app.use(limiter);
 app.use(morgan("dev"));

@@ -1,21 +1,23 @@
 import jwt from "jsonwebtoken";
+import { UnAuthorizedException } from "./error.helper";
 
 const verifyToken = (req, res, next) => {
     try {
         const authHeader = req.headers.authorization;
         if (!authHeader || !authHeader.startsWith("Bearer ")) {
-            return res.status(401).json({
-                message: "Bạn chưa đăng nhập!",
-            });
+            throw new UnAuthorizedException("Bạn chưa đăng nhập!");
         }
         const token = authHeader.split(" ")[1];
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        req.user = decoded;
+        req.user = decoded; //thông tin
         next();
     } catch (error) {
-        return res.status(401).json({
-            message: "Token không hợp lệ hoặc đã hết hạn!",
-        });
+        if (error instanceof UnAuthorizedException) {
+            return next(error);
+        }
+        return next(
+            new UnAuthorizedException("Token không hợp lệ hoặc đã hết hạn!"),
+        );
     }
 };
 

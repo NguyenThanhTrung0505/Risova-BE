@@ -1,3 +1,10 @@
+// Note
+// 400: Bạn gửi request sai.
+// 401: Bạn chưa chứng minh được mình là ai.
+// 403: Biết bạn là ai nhưng không cho phép.
+// 404: Thứ bạn tìm không tồn tại.
+// 500: Server gặp lỗi khi xử lý.
+
 export const statusCodes = {
     /**
      * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.2.1

@@ -1,22 +1,18 @@
-import { AppError } from "../helpers/error.helper.js";
-import { statusCodes } from "../helpers/statusCode.helper.js";
+import {
+    ForbiddenException,
+    UnAuthorizedException,
+} from "../helpers/error.helper.js";
 
 export const authorizeRoles = (...allowedRoles) => {
     return (req, res, next) => {
         if (!req.user || !req.user.role) {
-            return next(
-                new AppError(
-                    "Không xác định được quyền truy cập",
-                    statusCodes.UNAUTHORIZED,
-                ),
+            throw new UnAuthorizedException(
+                "Không xác định được quyền truy cập",
             );
         }
         if (!allowedRoles.includes(req.user.role)) {
-            return next(
-                new AppError(
-                    `Chức năng này yêu cầu quyền: ${allowedRoles.join(", ")}`,
-                    statusCodes.FORBIDDEN,
-                ),
+            throw new ForbiddenException(
+                `Chức năng này yêu cầu quyền: ${allowedRoles.join(", ")}`,
             );
         }
         next();

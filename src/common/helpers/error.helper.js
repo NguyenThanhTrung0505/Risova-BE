@@ -1,3 +1,4 @@
+import { responseError } from "./response.helper";
 import { statusCodes } from "./statusCode.helper";
 import { ZodError } from "zod";
 
@@ -9,46 +10,60 @@ export class AppError extends Error {
     }
 }
 
+// Không tìm thấy tài nguyên
+export class NotFoundException extends Error {
+    constructor(message = "NotFoundException") {
+        super(message);
+        this.statusCode = statusCodes.NOT_FOUND;
+    }
+}
+
+// refresh token || không đủ quyền
+export class ForbiddenException extends Error {
+    constructor(message = "ForbiddenException") {
+        super(message);
+        this.statusCode = statusCodes.FORBIDDEN;
+    }
+}
+
+// logout || chưa xác thực
+export class UnAuthorizedException extends Error {
+    constructor(message = "UnAuthorizedException") {
+        super(message);
+        this.statusCode = statusCodes.UNAUTHORIZED;
+    }
+}
+
 const errorHandler = (err, req, res, next) => {
     if (err instanceof ZodError) {
-        return res.status(statusCodes.BAD_REQUEST).json({
-            status: "error",
-            statusCode: statusCodes.BAD_REQUEST,
-            message: "Dữ liệu đầu vào không hợp lệ",
-            errors: err.issues.map((i) => ({
-                field: i.path.join("."),
-                message: i.message,
-            })),
-        });
+        const resErr = responseError("Dữ liệu không hợp lệ", 400, err?.stack);
+        return res.status(resErr.statusCode).json(resErr);
     }
     if (err.code === "23505") {
-        return res.status(statusCodes.CONFLICT).json({
-            status: "error",
-            statusCode: statusCodes.CONFLICT,
-            message: "Dữ liệu đã tồn tại (trùng mã hoặc giá trị duy nhất)",
-        });
+        const resErr = responseError(
+            "Dữ liệu đã tồn tại (trùng mã hoặc giá trị duy nhất)",
+            409,
+            err?.stack,
+        );
+        return res.status(resErr.statusCode).json(resErr);
     }
     if (err.code === "23503") {
-        return res.status(statusCodes.BAD_REQUEST).json({
-            status: "error",
-            statusCode: statusCodes.BAD_REQUEST,
-            message: "Dữ liệu tham chiếu không tồn tại hoặc đang được sử dụng",
-        });
+        const resErr = responseError(
+            "Dữ liệu tham chiếu không tồn tại hoặc đang được sử dụng",
+            400,
+            err?.stack,
+        );
+        return res.status(resErr.statusCode).json(resErr);
     }
     if (err.code === "23514") {
-        return res.status(statusCodes.BAD_REQUEST).json({
-            status: "error",
-            statusCode: statusCodes.BAD_REQUEST,
-            message: `Vi phạm ràng buộc dữ liệu: ${err.constraint || err.message}`,
-        });
+        const resErr = responseError(
+            `Vi phạm ràng buộc dữ liệu: ${err.constraint || err.message}`,
+            400,
+            err?.stack,
+        );
+        return res.status(resErr.statusCode).json(resErr);
     }
-
-    const statusCode = err.statusCode || statusCodes.INTERNAL_SERVER_ERROR;
-    res.status(statusCode).json({
-        status: "error",
-        statusCode,
-        message: err.message || "Lỗi hệ thống",
-        ...(err.errors && { errors: err.errors }),
-    });
+    const resErr = responseError(err?.message, err?.statusCode, err?.stack);
+    return res.status(resErr.statusCode).json(resErr);
 };
 export default errorHandler;
