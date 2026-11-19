@@ -4,7 +4,7 @@ import assetService from "../services/asset.service.js";
 const assetController = {
     getAll: async (req, res, next) => {
         try {
-            const data = await assetService.getAssets(req.query);
+            const data = await assetService.getAll(req.query);
             const resData = responseSuccess(data);
             res.status(resData.statusCode).json(resData);
         } catch (error) {

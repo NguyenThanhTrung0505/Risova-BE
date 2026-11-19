@@ -1,6 +1,25 @@
 export const parsePagination = (query) => {
-    const page = Math.max(1, parseInt(query.page, 10) || 1);
-    const limit = Math.min(100, Math.max(1, parseInt(query.limit, 10) || 20));
+    let { page, pageSize } = query;
+    const pageDefault = 1;
+    const pageSizeDefault = 10;
+    const maxPageSize = 500;
+    page = Number(page);
+    let limit = Number(pageSize);
+    if (page <= 0) {
+        page = pageDefault;
+    }
+    if (limit <= 0) {
+        limit = pageSizeDefault;
+    }
+    if (limit > maxPageSize) {
+        limit = pageSizeDefault;
+    }
+    if (!Number.isSafeInteger(page)) {
+        page = pageDefault;
+    }
+    if (!Number.isSafeInteger(limit)) {
+        limit = pageSizeDefault;
+    }
     const offset = (page - 1) * limit;
     return { page, limit, offset };
 };

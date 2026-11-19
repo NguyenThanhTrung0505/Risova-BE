@@ -4,6 +4,9 @@ const authRepository = {
         const user = await db.orm.public.Users.where({ email }).first();
         return user;
     },
+    findUserById: async (id) => {
+        return await db.orm.public.Users.where({ id }).first();
+    },
     register: async (data) => {
         const result = await db.orm.public.Users.create({
             employeeCode: data.employee_code,
