@@ -83,6 +83,80 @@ const assetRepository = {
             }
         }
     },
+
+    getThresholds: async (id) => {
+        const assetId = Number(id);
+        let query = db.orm.public.AssetThresholds;
+        return await query.where({ assetId: assetId }).all();
+    },
+
+    replaceThresholds: async (id, thresholds, tx = db) => {
+        const query = tx.orm.public.AssetThresholds;
+        const alertQuery = tx.orm.public.Alerts;
+        const existing = await query.where({ assetId: id }).all();
+
+        const keep = thresholds.map((item) => item.metricType);
+        // 1. Xóa ngưỡng không còn được gửi lên và chưa có cảnh báo
+        for (const item of existing) {
+            if (keep.includes(item.metricType)) continue; // có tồn tại thì next
+            const hasAlert = await alertQuery
+                .where({ thresholdId: item.id })
+                .first();
+            if (!hasAlert) {
+                await query.where({ id: item.id }).delete();
+            }
+        }
+
+        // 2. Cập nhật ngưỡng cũ hoặc thêm ngưỡng mới
+        for (const item of thresholds) {
+            const oldItem = existing.find(
+                (old) => old.metricType === item.metricType,
+            );
+            if (oldItem) {
+                await query.where({ id: oldItem.id }).update({
+                    unit: item.unit,
+                    warningLimit: item.warningLimit,
+                    dangerLimit: item.dangerLimit,
+                });
+            } else {
+                await query.create({
+                    ...item,
+                    assetId: id,
+                });
+            }
+        }
+    },
+
+    getBom: async ({ assetId, limit, offset }) => {
+        return await db.orm.public.AssetBom.where({ assetId })
+            .select("id", "partId", "standardQuantity")
+            .include("part", (p) =>
+                p.select(
+                    "partCode",
+                    "name",
+                    "unit",
+                    "quantityInStock",
+                    "reservedQuantity",
+                ),
+            )
+            .limit(limit)
+            .offset(offset)
+            .orderBy((a) => {
+                return a.partId.desc();
+            })
+            .all();
+    },
+
+    replaceBom: async (assetId, items, tx = sql) => {
+        await tx.orm.public.AssetBom.where({ assetId }).delete();
+        for (const it of items) {
+            await tx.orm.public.AssetBom.create({
+                assetId,
+                partId: it.partId,
+                standardQuantity: it.standardQuantity ?? 1,
+            });
+        }
+    },
 };
 
 export default assetRepository;

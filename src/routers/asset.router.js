@@ -68,12 +68,10 @@ const thresholdsSchema = z.object({
     body: z
         .array(
             z.object({
-                metric_type: requiredString(50, "Chỉ số").transform((v) =>
-                    v.toUpperCase(),
-                ),
-                unit: requiredString(20, "Đơn vị"),
-                warning_limit: z.coerce.number(),
-                danger_limit: z.coerce.number(),
+                metricType: z.string().trim().min(1).max(50),
+                unit: z.string().trim().min(1).max(20),
+                warningLimit: z.coerce.number(),
+                dangerLimit: z.coerce.number(),
             }),
         )
         .max(20),
@@ -83,8 +81,8 @@ const bomSchema = z.object({
     body: z
         .array(
             z.object({
-                part_id: z.coerce.number().int(),
-                standard_quantity: z.coerce.number().positive().default(1),
+                partId: z.coerce.number().int(),
+                standardQuantity: z.coerce.number().positive().default(1),
             }),
         )
         .max(200),
@@ -112,19 +110,19 @@ assetRouter.put(
 
 // thresholds
 assetRouter.get("/:id/thresholds", assetController.getThresholds);
-// assetRouter.put(
-//     "/:id/thresholds",
-//     authorizeRoles("ADMIN", "MANAGER", "TECHNICIAN"),
-//     validate(thresholdsSchema),
-//     assetController.setThresholds,
-// );
+assetRouter.put(
+    "/:id/thresholds",
+    authorizeRoles("ADMIN", "MANAGER", "TECHNICIAN"),
+    validate(thresholdsSchema),
+    assetController.setThresholds,
+);
 
 // bom
-// assetRouter.get("/:id/bom", assetController.getBom);
-// assetRouter.put(
-//     "/:id/bom",
-//     authorizeRoles("ADMIN", "MANAGER", "TECHNICIAN"),
-//     validate(bomSchema),
-//     assetController.setBom,
-// );
+assetRouter.get("/:id/bom", assetController.getBom);
+assetRouter.put(
+    "/:id/bom",
+    // authorizeRoles("ADMIN", "MANAGER", "TECHNICIAN"),
+    validate(bomSchema),
+    assetController.setBom,
+);
 export default assetRouter;
